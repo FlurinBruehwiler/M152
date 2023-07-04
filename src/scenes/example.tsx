@@ -1,5 +1,5 @@
 import {Circle, Rect, Layout, makeScene2D, View2D, getPointAtDistance, Txt} from '@motion-canvas/2d';
-import {all, createRef, makeRef, makeRefs, range, useLogger, waitFor} from '@motion-canvas/core';
+import {all, createRef, makeRef, makeRefs, range, Reference, useLogger, waitFor} from '@motion-canvas/core';
 
 type Node = {
     x: number,
@@ -10,7 +10,11 @@ type Node = {
     gCost?: number,
     hCost?: number
     fCost?: number,
-    parent?: Node
+    parent?: Node,
+    ref:  Reference<Rect>,
+    gRef: Reference<Txt>,
+    hRef: Reference<Txt>,
+    fRef: Reference<Txt>,
 }
 
 type Grid = {
@@ -23,6 +27,7 @@ type Grid = {
 
 export default makeScene2D(function* (view) {
 
+    console.time('initialization')
     const logger = useLogger();
 
     const gridTemplate = [
@@ -44,6 +49,10 @@ export default makeScene2D(function* (view) {
             isEnd: num == 3,
             x: x,
             y: y,
+            ref: createRef<Rect>(),
+            gRef: createRef<Txt>(),
+            hRef: createRef<Txt>(),
+            fRef: createRef<Txt>(),
         };
     }))
 
@@ -67,7 +76,54 @@ export default makeScene2D(function* (view) {
     let current = start;
     let counter = 0;
 
-    while (counter < 20) {
+    const gap = 10;
+    const width = 100;
+
+    const offsetX = ((grid.width - 1) * width + (grid.width - 1) * gap) / 2
+    const offsetY = ((grid.height - 1) * width + (grid.height - 1) * gap) / 2
+
+    const test = grid.nodes.map(node => {
+        const x = node.x * (width + gap) - offsetX;
+        const y = node.y * (width + gap) - offsetY;
+
+        return (
+            <Rect
+                ref={node.ref}
+                width={width}
+                height={width}
+                x={x}
+                y={y}
+                fill={"#ffffff"}>
+                <Txt
+                    ref={node.gRef}
+                    fill={"#ffffff"}
+                    fontSize={20}
+                    y={-33}
+                ></Txt>
+                <Txt
+                    ref={node.fRef}
+                    fill={"#ffffff"}
+                    fontSize={20}
+                    y={0}
+
+                ></Txt>
+                <Txt
+                    ref={node.hRef}
+                    fill={"#ffffff"}
+                    fontSize={20}
+                    y={33}
+
+                ></Txt>
+            </Rect>
+        );
+    });
+
+    view.add(test);
+
+    console.timeEnd('initialization')
+
+    while (counter < 30) {
+        console.time('execution')
         counter++;
         const dup = [...grid.openNodes]
         dup.sort((x, y) => x.fCost > y.fCost ? 1 : -1);
@@ -99,7 +155,13 @@ export default makeScene2D(function* (view) {
             }
         });
 
-        display(view, grid, current);
+        grid.nodes.forEach(x => {
+            x.ref().fill(GetColor(x, grid, current))
+            x.gRef().text("g: " + x.gCost?.toString()?.slice(0, 4) ?? "")
+            x.hRef().text("h: " + x.hCost?.toString()?.slice(0, 4) ?? "")
+            x.fRef().text("f: " + x.fCost?.toString()?.slice(0, 4) ?? "")
+        })
+        console.timeEnd('execution')
         yield;
     }
 });
@@ -133,46 +195,6 @@ function GetDistance(start: Node, end: Node): number {
     const diagonalDistance = (Math.max(xDistance, yDistance) - straightDistance) * 1.4;
 
     return straightDistance + diagonalDistance;
-}
-
-function display(view: View2D, grid: Grid, current: Node): void {
-    const rects: Rect[] = [];
-
-    const gap = 10;
-    const width = 100;
-
-    const offsetX = ((grid.width - 1) * width + (grid.width - 1) * gap) / 2
-    const offsetY = ((grid.height - 1) * width + (grid.height - 1) * gap) / 2
-
-    const test = grid.nodes.map(node => {
-        const x = node.x * (width + gap) - offsetX;
-        const y = node.y * (width + gap) - offsetY;
-
-        return (
-            <Rect
-                ref={makeRef(rects, node.x * node.y)}
-                width={width}
-                height={width}
-                x={x}
-                y={y}
-                fill={GetColor(node, grid, current)}>
-                <Txt
-                    fill={"#ffffff"}
-                    fontSize={20}
-                >{"f: " + node.fCost?.toString()?.slice(0, 4)}</Txt>
-                <Txt
-                    fill={"#ffffff"}
-                    fontSize={20}
-                >{"h: " + node.hCost?.toString()?.slice(0, 4)}</Txt>
-                <Txt
-                    fill={"#ffffff"}
-                    fontSize={20}
-                >{"g: " + node.gCost?.toString()?.slice(0, 4)}</Txt>
-            </Rect>
-        );
-    });
-
-    view.add(test);
 }
 
 function GetColor(node: Node, grid: Grid, current: Node): string {
