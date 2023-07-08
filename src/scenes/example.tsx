@@ -1,5 +1,5 @@
-import {Circle, Rect, Layout, makeScene2D, View2D, getPointAtDistance, Txt} from '@motion-canvas/2d';
-import {all, createRef, makeRef, makeRefs, range, Reference, useLogger, waitFor} from '@motion-canvas/core';
+import {Rect, makeScene2D, Txt} from '@motion-canvas/2d';
+import {createRef, Reference} from '@motion-canvas/core';
 
 type Node = {
     x: number,
@@ -11,10 +11,11 @@ type Node = {
     hCost?: number
     fCost?: number,
     parent?: Node,
-    ref:  Reference<Rect>,
+    ref: Reference<Rect>,
     gRef: Reference<Txt>,
     hRef: Reference<Txt>,
     fRef: Reference<Txt>,
+    isPath: boolean
 }
 
 type Grid = {
@@ -25,20 +26,26 @@ type Grid = {
     closedNodes: Node[]
 }
 
-export default makeScene2D(function* (view) {
+function MarkParentAsPath(node: Node) {
+    if(node.parent){
+        node.parent.isPath = true;
+        MarkParentAsPath(node.parent)
+    }
+}
 
+export default makeScene2D(function* (view) {
     console.time('initialization')
-    const logger = useLogger();
+    view.fill("#3d3d3d")
 
     const gridTemplate = [
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     ]
 
@@ -53,6 +60,7 @@ export default makeScene2D(function* (view) {
             gRef: createRef<Txt>(),
             hRef: createRef<Txt>(),
             fRef: createRef<Txt>(),
+            isPath: false
         };
     }))
 
@@ -98,21 +106,21 @@ export default makeScene2D(function* (view) {
                     ref={node.gRef}
                     fill={"#ffffff"}
                     fontSize={20}
-                    y={-33}
-                ></Txt>
-                <Txt
-                    ref={node.fRef}
-                    fill={"#ffffff"}
-                    fontSize={20}
-                    y={0}
-
+                    y={-30}
+                    x={-30}
                 ></Txt>
                 <Txt
                     ref={node.hRef}
                     fill={"#ffffff"}
                     fontSize={20}
-                    y={33}
-
+                    y={-30}
+                    x={30}
+                ></Txt>
+                <Txt
+                    ref={node.fRef}
+                    fill={"#ffffff"}
+                    fontSize={35}
+                    y={10}
                 ></Txt>
             </Rect>
         );
@@ -132,8 +140,12 @@ export default makeScene2D(function* (view) {
         grid.openNodes.splice(grid.openNodes.indexOf(current), 1)
         grid.closedNodes.push(current)
 
-        if (current == end)
+        if (current == end){
+            MarkParentAsPath(current)
+            UpdateGrid(grid, current)
+
             break;
+        }
 
         const neighbours = GetNeighbours(current, nodes);
 
@@ -155,16 +167,44 @@ export default makeScene2D(function* (view) {
             }
         });
 
-        grid.nodes.forEach(x => {
-            x.ref().fill(GetColor(x, grid, current))
-            x.gRef().text("g: " + x.gCost?.toString()?.slice(0, 4) ?? "")
-            x.hRef().text("h: " + x.hCost?.toString()?.slice(0, 4) ?? "")
-            x.fRef().text("f: " + x.fCost?.toString()?.slice(0, 4) ?? "")
-        })
+        UpdateGrid(grid, current)
+
         console.timeEnd('execution')
         yield;
     }
 });
+
+function UpdateGrid(grid: Grid, current: Node) {
+    grid.nodes.forEach(x => {
+        x.ref().fill(GetColor(x, grid, current))
+
+        if(x.isStart){
+            x.fRef().text("A")
+            return
+        }
+
+        if(x.isEnd){
+            x.fRef().text("B")
+            return
+        }
+
+        if (x.gCost) {
+            x.gRef().text(x.gCost?.toString() ?? "TEST")
+        } else {
+            x.gRef().text("")
+        }
+        if (x.hCost) {
+            x.hRef().text(x.hCost?.toString() ?? "test")
+        } else {
+            x.hRef().text("")
+        }
+        if (x.fCost) {
+            x.fRef().text(x.fCost?.toString() ?? "test")
+        } else {
+            x.fRef().text("")
+        }
+    })
+}
 
 function GetNeighbours(node: Node, nodes: Node[]): Node[] {
     const neighbours = [
@@ -192,30 +232,30 @@ function GetDistance(start: Node, end: Node): number {
     const yDistance = Math.abs(start.y - end.y)
 
     const straightDistance = Math.abs(xDistance - yDistance);
-    const diagonalDistance = (Math.max(xDistance, yDistance) - straightDistance) * 1.4;
+    const diagonalDistance = (Math.max(xDistance, yDistance) - straightDistance);
 
-    return straightDistance + diagonalDistance;
+    return straightDistance * 10 + diagonalDistance * 14;
 }
 
 function GetColor(node: Node, grid: Grid, current: Node): string {
-    if (node === current)
-        return "#000000"
+    
+    if (node === current || node.isPath)
+        return "#1dcd5b"
 
     if (node.isBlocked)
-        return "#d0888e"
+        return "#000000"
 
     if (node.isStart)
-        return "#412352"
+        return "#f16470"
 
     if (node.isEnd)
-        return "#ffaa22"
+        return "#f16470"
 
     if (grid.openNodes.includes(node))
-        return "#22aaff"
+        return "#1c2f3d"
 
     if (grid.closedNodes.includes(node))
-        return "#aa22ff"
+        return "#22aaff"
 
-    return "#ffffff"
-
+    return "#242424"
 }
