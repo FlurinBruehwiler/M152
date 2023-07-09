@@ -1,30 +1,8 @@
-import {Rect, makeScene2D, Txt} from '@motion-canvas/2d';
-import {createRef, Reference} from '@motion-canvas/core';
+import {Rect, makeScene2D, Txt, View2D} from '@motion-canvas/2d';
+import {createRef } from '@motion-canvas/core';
+import {Node, Grid} from "../types"
 
-type Node = {
-    x: number,
-    y: number,
-    isStart: boolean,
-    isEnd: boolean
-    isBlocked: boolean,
-    gCost?: number,
-    hCost?: number
-    fCost?: number,
-    parent?: Node,
-    ref: Reference<Rect>,
-    gRef: Reference<Txt>,
-    hRef: Reference<Txt>,
-    fRef: Reference<Txt>,
-    isPath: boolean
-}
 
-type Grid = {
-    width: number,
-    height: number,
-    nodes: Node[],
-    openNodes: Node[],
-    closedNodes: Node[]
-}
 
 function MarkParentAsPath(node: Node) {
     if(node.parent){
@@ -33,22 +11,7 @@ function MarkParentAsPath(node: Node) {
     }
 }
 
-export default makeScene2D(function* (view) {
-    console.time('initialization')
-    view.fill("#3d3d3d")
-
-    const gridTemplate = [
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ]
-
+function Visualize(gridTemplate: number[][], view: View2D){
     const nodes = gridTemplate.flatMap((row, y) => row.map<Node>((num, x) => {
         return {
             isBlocked: num == 1,
@@ -80,9 +43,6 @@ export default makeScene2D(function* (view) {
     start.fCost = start.gCost + start.hCost;
 
     grid.openNodes = [start];
-
-    let current = start;
-    let counter = 0;
 
     const gap = 10;
     const width = 100;
@@ -128,10 +88,45 @@ export default makeScene2D(function* (view) {
 
     view.add(test);
 
+    return {
+        start: start,
+        end: end,
+        grid: grid,
+        nodes: nodes
+    }
+}
+
+export default makeScene2D(function* (view) {
+    console.time('initialization')
+    view.fill("#3d3d3d")
+
+    const gridTemplate = [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ]
+
+
+
+
+    let {end, grid, start, nodes} = Visualize(gridTemplate, view)
+
+
+    let current = start;
+    let counter = 0;
     console.timeEnd('initialization')
 
-    while (counter < 30) {
-        console.time('execution')
+    UpdateGrid(grid, current)
+
+    yield
+
+    while (counter < 100) {
         counter++;
         const dup = [...grid.openNodes]
         dup.sort((x, y) => x.fCost > y.fCost ? 1 : -1);
@@ -148,7 +143,6 @@ export default makeScene2D(function* (view) {
         }
 
         const neighbours = GetNeighbours(current, nodes);
-
 
         neighbours.forEach(neighbour => {
             if (neighbour.isBlocked || grid.closedNodes.includes(neighbour))
@@ -167,10 +161,10 @@ export default makeScene2D(function* (view) {
             }
         });
 
+
         UpdateGrid(grid, current)
 
-        console.timeEnd('execution')
-        yield;
+        yield
     }
 });
 
